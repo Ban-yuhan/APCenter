@@ -44,7 +44,6 @@ namespace APCenter.Core
         public float GetPlayerMoveSpeed()
         {
             float baseSpeed = 7.0f + (playerMoveSpeedLevel - 1) * 1.2f;
-            if (hasForklift) return baseSpeed * 1.5f;
             if (hasElectricCart) return baseSpeed * 1.3f;
             if (hasCartUnlocked) return baseSpeed * 1.15f;
             return baseSpeed;
@@ -52,11 +51,8 @@ namespace APCenter.Core
 
         public int GetPlayerMaxStack()
         {
-            int baseCap = 4 + (playerStackCapacityLevel - 1) * 2;
-            if (hasForklift) return baseCap + 12;
-            if (hasElectricCart) return baseCap + 6;
-            if (hasCartUnlocked) return baseCap + 2;
-            return baseCap;
+            // 플레이어 기본 최대 적재량 4개, 스택 확장 구매 시 1레벨당 +1개씩 순차 확장 (4 -> 5 -> 6...)
+            return 4 + (playerStackCapacityLevel - 1);
         }
 
         public bool UpgradePlayerSpeed()
@@ -85,17 +81,31 @@ namespace APCenter.Core
             return false;
         }
 
-        public bool UnlockPalletSystem()
+        public bool UnlockForkliftSystem()
         {
             long cost = GetPalletCost();
-            if (!hasPalletSystem && EconomyManager.Instance.SpendMoney(cost))
+            if (!hasForklift && EconomyManager.Instance.SpendMoney(cost))
             {
+                hasForklift = true;
                 hasPalletSystem = true;
                 SoundManager.Instance?.PlaySuccess();
                 OnUpgradeChanged?.Invoke();
                 return true;
             }
             return false;
+        }
+
+        public bool UnlockPalletSystem()
+        {
+            return UnlockForkliftSystem();
+        }
+
+        public void ActivateForkliftForPallet()
+        {
+            hasForklift = true;
+            hasPalletSystem = true;
+            SoundManager.Instance?.PlaySuccess();
+            OnUpgradeChanged?.Invoke();
         }
 
         public bool UpgradeFacilityTier()
@@ -121,7 +131,6 @@ namespace APCenter.Core
                 if (EconomyManager.Instance.SpendMoney(cost))
                 {
                     CurrentTier = FacilityTier.MegaHub;
-                    hasForklift = true;
                     hasAutoSorter = true;
                     maxWorkersAllowed = 12;
                     UpdateFacilityTierSpecs();

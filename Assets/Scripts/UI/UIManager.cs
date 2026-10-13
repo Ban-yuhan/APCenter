@@ -71,6 +71,11 @@ namespace APCenter.UI
 
         private void Start()
         {
+            TopHUDUI.EnsureTopHUDExists();
+            LightingManager.EnsureLightingManagerExists();
+            RecruitCardUI.EnsureRecruitSystemExists();
+            PalletStation.EnsurePalletAndForkliftZonesExist();
+            Billboard.StandardizeAllSceneWorldTexts();
             BindEvents();
             CloseAllPanels();
             UpdateTopHUD();
@@ -123,7 +128,12 @@ namespace APCenter.UI
 
             if (upgradeSpeedButton != null) upgradeSpeedButton.onClick.AddListener(OnUpgradeSpeed);
             if (upgradeCapacityButton != null) upgradeCapacityButton.onClick.AddListener(OnUpgradeCapacity);
-            if (unlockPalletButton != null) unlockPalletButton.onClick.AddListener(OnUnlockPallet);
+            if (unlockPalletButton != null)
+            {
+                unlockPalletButton.onClick.AddListener(OnUnlockPallet);
+                var btnTxt = unlockPalletButton.GetComponentInChildren<Text>();
+                if (btnTxt != null) btnTxt.text = "지게차 시스템 해금";
+            }
             if (upgradeTierButton != null) upgradeTierButton.onClick.AddListener(OnUpgradeTier);
         }
 
@@ -135,7 +145,7 @@ namespace APCenter.UI
             {
                 if (eventTimerText != null)
                 {
-                    eventTimerText.text = $"남은 시간: {EventSystem.Instance.EventTimer:F1}s";
+                    eventTimerText.text = $"남은 시간: {EventSystem.Instance.GetFormattedRemainingTime()}";
                 }
             }
 
@@ -169,61 +179,44 @@ namespace APCenter.UI
 
         private void UpdateTruckHUD()
         {
-            if (WorkerController.OutTruck == null) return;
+            if (OutboundTruck.AllTrucks.Count == 0) return;
 
-            var truck = WorkerController.OutTruck;
-            float ratio = truck.LoadRatio;
+            var seoulTruck = OutboundTruck.GetTruckForDestination(PackageDestination.Seoul);
+            var busanTruck = OutboundTruck.GetTruckForDestination(PackageDestination.Busan);
+            var daeguTruck = OutboundTruck.GetTruckForDestination(PackageDestination.Daegu);
+
+            bool anyReady = false;
+            float maxRatio = 0f;
+            foreach (var t in OutboundTruck.AllTrucks)
+            {
+                if (t == null) continue;
+                if (t.IsReadyToDepart) anyReady = true;
+                if (t.LoadRatio > maxRatio) maxRatio = t.LoadRatio;
+            }
 
             if (truckLoadFillImage != null)
             {
-                truckLoadFillImage.fillAmount = ratio;
+                truckLoadFillImage.fillAmount = maxRatio;
             }
 
             if (truckDepartButton != null)
             {
-                truckDepartButton.interactable = truck.IsReadyToDepart && !truck.IsDeparting;
+                truckDepartButton.interactable = anyReady;
             }
 
             if (truckDepartButtonText != null)
             {
-                int cur = Mathf.RoundToInt(ratio * truck.MaxCapacity);
+                string sStr = seoulTruck != null ? $"{seoulTruck.LoadedSlotCount}/{seoulTruck.MaxCapacity}" : "0/10";
+                string bStr = busanTruck != null ? $"{busanTruck.LoadedSlotCount}/{busanTruck.MaxCapacity}" : "0/10";
+                string dStr = daeguTruck != null ? $"{daeguTruck.LoadedSlotCount}/{daeguTruck.MaxCapacity}" : "0/10";
 
-                // 💡 목적지가 확정되지 않았거나 None인 경우 '목적지 미정' 표기
-                string destTag = "";
-                if (!truck.HasAssignedDestination || truck.targetDestination == PackageDestination.None)
+                if (anyReady)
                 {
-                    destTag = "[목적지 미정📦]";
+                    truckDepartButtonText.text = $"🚚 출발 가능! [서울:{sStr} | 부산:{bStr} | 대구:{dStr}]";
                 }
                 else
                 {
-                    switch (truck.targetDestination)
-                    {
-                        case PackageDestination.Seoul:
-                            destTag = "[서울행]";
-                            break;
-                        case PackageDestination.Busan:
-                            destTag = "[부산행]";
-                            break;
-                        case PackageDestination.Daegu:
-                            destTag = "[대구행]";
-                            break;
-                        default:
-                            destTag = "[목적지 미정📦]";
-                            break;
-                    }
-                }
-
-                if (ratio >= 1.0f)
-                {
-                    truckDepartButtonText.text = $"🚚 {destTag} 출발! [PERFECT 100% ({cur}/{truck.MaxCapacity})]";
-                }
-                else if (truck.IsReadyToDepart)
-                {
-                    truckDepartButtonText.text = $"🚚 {destTag} 출발 가능 ({cur}/{truck.MaxCapacity})";
-                }
-                else
-                {
-                    truckDepartButtonText.text = $"⏳ {destTag} 적재 중... ({cur}/{truck.MaxCapacity}) [50% 필요]";
+                    truckDepartButtonText.text = $"⏳ 도크 적재중 [서울:{sStr} | 부산:{bStr} | 대구:{dStr}] (5칸↑ 출발)";
                 }
             }
         }
@@ -268,6 +261,11 @@ namespace APCenter.UI
 
         private void HandleEventStarted(GameEventType type, string title, float duration)
         {
+            if (TopHUDUI.Instance != null)
+            {
+                if (eventBannerPanel != null) eventBannerPanel.SetActive(false);
+                return;
+            }
             if (eventBannerPanel != null) eventBannerPanel.SetActive(true);
             if (eventBannerText != null) eventBannerText.text = title;
         }
@@ -275,14 +273,13 @@ namespace APCenter.UI
         private void HandleEventEnded(GameEventType type, bool isSuccess)
         {
             if (eventBannerPanel != null) eventBannerPanel.SetActive(false);
-            ShowNotice(isSuccess ? "🎉 이벤트 완료 성공!" : "❌ 이벤트가 종료되었습니다.");
         }
 
         private void HandleWeatherTaskUpdated(int cur, int req)
         {
-            if (eventBannerText != null)
+            if (TopHUDUI.Instance == null && eventBannerText != null)
             {
-                eventBannerText.text = $"🛠️ 기상 악화 복구 작업 진행 중: ({cur}/{req}) 완료!";
+                eventBannerText.text = $"🛠️ 기상 악화 복구 작업 진행 중: ({cur}/{req}%)";
             }
         }
 
@@ -301,6 +298,13 @@ namespace APCenter.UI
         public void OpenWorkerPanel()
         {
             CloseAllPanels();
+            RecruitCardUI.EnsureRecruitSystemExists();
+            if (RecruitCardUI.Instance != null)
+            {
+                RecruitCardUI.Instance.OpenRecruitCards();
+                return;
+            }
+
             if (workerPanel != null)
             {
                 workerPanel.SetActive(true);
@@ -365,8 +369,8 @@ namespace APCenter.UI
 
             sb.AppendLine("=== 시설 및 장비 업그레이드 ===");
             sb.AppendLine($"1. 이동 속도: Lv.{gm.playerMoveSpeedLevel} (비용: ₩{gm.GetUpgradeSpeedCost():N0})");
-            sb.AppendLine($"2. 택배 스택 한도: Lv.{gm.playerStackCapacityLevel} [최대 {gm.GetPlayerMaxStack()}개] (비용: ₩{gm.GetUpgradeCapacityCost():N0})");
-            sb.AppendLine($"3. 파렛트 적재 시스템: {(gm.hasPalletSystem ? "해금 완료 (적재효율 200%)" : $"미해금 (비용: ₩{gm.GetPalletCost():N0})")}");
+            sb.AppendLine($"2. 스택 확장 (+1/Lv): Lv.{gm.playerStackCapacityLevel} [최대 {gm.GetPlayerMaxStack()}개] (비용: ₩{gm.GetUpgradeCapacityCost():N0})");
+            sb.AppendLine($"3. 지게차 시스템 해금: {(gm.hasForklift ? "해금 완료 (지게차 탑승 및 파렛트 운송 가능)" : $"미해금 (비용: ₩{gm.GetPalletCost():N0})")}");
             sb.AppendLine($"4. 시설 성장: {gm.CurrentTier} ➔ 다음 단계 (비용: ₩{gm.GetTierUpgradeCost():N0})");
 
             upgradeListText.text = sb.ToString();
@@ -374,6 +378,13 @@ namespace APCenter.UI
 
         private void OnHireNormalWorker()
         {
+            if (RecruitCardUI.Instance != null)
+            {
+                CloseAllPanels();
+                RecruitCardUI.Instance.OpenRecruitCards();
+                return;
+            }
+
             WorkerRole randomSpecialty = (WorkerRole)UnityEngine.Random.Range(0, 5);
             var w = WorkerManager.Instance?.HireWorker(randomSpecialty, WorkerType.Normal);
             if (w == null)
@@ -426,7 +437,7 @@ namespace APCenter.UI
         {
             if (GameManager.Instance.UpgradePlayerCapacity())
             {
-                ShowNotice("📦 박스 스택 용량이 증가했습니다!");
+                ShowNotice($"📦 스택 확장이 완료되었습니다! (최대 적재량: {GameManager.Instance.GetPlayerMaxStack()}개)");
             }
             else
             {
@@ -437,9 +448,9 @@ namespace APCenter.UI
 
         private void OnUnlockPallet()
         {
-            if (GameManager.Instance.UnlockPalletSystem())
+            if (GameManager.Instance.UnlockForkliftSystem())
             {
-                ShowNotice("🏗️ 파렛트 적재 시스템이 해금되었습니다!");
+                ShowNotice("🚜 지게차 시스템이 해금되었습니다! 이제 북동쪽 지게차 구역에서 탑승할 수 있습니다!");
             }
             else
             {
@@ -464,9 +475,12 @@ namespace APCenter.UI
 
         private void OnTruckDepartClicked()
         {
-            if (WorkerController.OutTruck != null)
+            foreach (var truck in OutboundTruck.AllTrucks)
             {
-                WorkerController.OutTruck.TryDepart();
+                if (truck != null && truck.IsReadyToDepart)
+                {
+                    truck.TryDepart();
+                }
             }
         }
     }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 namespace APCenter.Core
@@ -17,6 +17,7 @@ namespace APCenter.Core
         private AudioClip alertClip;
         private AudioClip successClip;
         private AudioClip clickClip;
+        private AudioClip errorClip; // 💡 에러/작업 실패 효과음 클립 추가
 
         private void Awake()
         {
@@ -45,6 +46,7 @@ namespace APCenter.Core
             alertClip = CreateAlertClip();
             successClip = CreateSuccessClip();
             clickClip = CreateBeepClip(800f, 0.04f, 0.2f, 900f);
+            errorClip = CreateErrorClip(); // 💡 절차적 에러 클립 생성
         }
 
         public void PlayPickup() => PlayClip(pickupClip, 0.5f);
@@ -54,6 +56,7 @@ namespace APCenter.Core
         public void PlayAlert() => PlayClip(alertClip, 0.8f);
         public void PlaySuccess() => PlayClip(successClip, 0.8f);
         public void PlayClick() => PlayClip(clickClip, 0.4f);
+        public void PlayError() => PlayClip(errorClip, 0.6f); // 💡 컴파일 에러 해결용 공개 메서드
 
         private void PlayClip(AudioClip clip, float vol)
         {
@@ -85,8 +88,7 @@ namespace APCenter.Core
         private AudioClip CreateCoinClip()
         {
             int sampleRate = 44100;
-            float duration = 0.25f;
-            int samples = (int)(sampleRate * duration);
+            int samples = (int)(sampleRate * 0.25f);
             float[] data = new float[samples];
 
             for (int i = 0; i < samples; i++)
@@ -105,8 +107,7 @@ namespace APCenter.Core
         private AudioClip CreateHornClip()
         {
             int sampleRate = 44100;
-            float duration = 0.5f;
-            int samples = (int)(sampleRate * duration);
+            int samples = (int)(sampleRate * 0.5f);
             float[] data = new float[samples];
 
             for (int i = 0; i < samples; i++)
@@ -126,8 +127,7 @@ namespace APCenter.Core
         private AudioClip CreateAlertClip()
         {
             int sampleRate = 44100;
-            float duration = 0.3f;
-            int samples = (int)(sampleRate * duration);
+            int samples = (int)(sampleRate * 0.3f);
             float[] data = new float[samples];
 
             for (int i = 0; i < samples; i++)
@@ -146,8 +146,7 @@ namespace APCenter.Core
         private AudioClip CreateSuccessClip()
         {
             int sampleRate = 44100;
-            float duration = 0.7f;
-            int samples = (int)(sampleRate * duration);
+            int samples = (int)(sampleRate * 0.7f);
             float[] data = new float[samples];
 
             float[] notes = new float[] { 523.25f, 659.25f, 783.99f, 1046.50f }; // C5, E5, G5, C6
@@ -162,6 +161,29 @@ namespace APCenter.Core
             }
 
             AudioClip clip = AudioClip.Create("Success", samples, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        // 💡 거친 저음 버저(Buzzer) 합성: 상차 불가, 오분류, 조건 미달 시 출력
+        private AudioClip CreateErrorClip()
+        {
+            int sampleRate = 44100;
+            float duration = 0.22f;
+            int samples = (int)(sampleRate * duration);
+            float[] data = new float[samples];
+
+            for (int i = 0; i < samples; i++)
+            {
+                float t = (float)i / samples;
+                // 150Hz 기본음 + 220Hz 불협화음 합성으로 거친 삑 소리 구현
+                float wave = Mathf.Sin(2 * Mathf.PI * 150f * (i / (float)sampleRate)) * 0.55f
+                           + Mathf.Sin(2 * Mathf.PI * 220f * (i / (float)sampleRate)) * 0.45f;
+                float envelope = 1f - t;
+                data[i] = wave * envelope * 0.55f;
+            }
+
+            AudioClip clip = AudioClip.Create("Error", samples, 1, sampleRate, false);
             clip.SetData(data, 0);
             return clip;
         }

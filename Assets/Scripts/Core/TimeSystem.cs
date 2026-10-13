@@ -39,6 +39,8 @@ namespace APCenter.Core
                 var sun = GameObject.Find("Directional Light");
                 if (sun != null) directionalLight = sun.GetComponent<Light>();
             }
+
+            LightingManager.EnsureLightingManagerExists();
         }
 
         private void Update()
@@ -67,21 +69,23 @@ namespace APCenter.Core
             int m = (int)((CurrentGameHour - h) * 60f);
             OnTimeTick?.Invoke(h, m);
 
-            UpdateLighting();
+            if (LightingManager.Instance == null)
+            {
+                UpdateLighting();
+            }
         }
 
         private void UpdateLighting()
         {
             if (directionalLight == null) return;
 
-            // 0h ~ 24h 태양 각도 및 조명 강도
             float angle = (CurrentGameHour / 24f) * 360f - 90f;
             directionalLight.transform.rotation = Quaternion.Euler(new Vector3(angle, -30f, 0f));
 
             if (IsNight)
             {
-                directionalLight.intensity = Mathf.Lerp(directionalLight.intensity, 0.35f, Time.deltaTime * 2f);
-                directionalLight.color = Color.Lerp(directionalLight.color, new Color(0.6f, 0.7f, 1.0f), Time.deltaTime * 2f);
+                directionalLight.intensity = Mathf.Lerp(directionalLight.intensity, 0.1f, Time.deltaTime * 2f);
+                directionalLight.color = Color.Lerp(directionalLight.color, new Color(0.2f, 0.3f, 0.5f), Time.deltaTime * 2f);
             }
             else
             {

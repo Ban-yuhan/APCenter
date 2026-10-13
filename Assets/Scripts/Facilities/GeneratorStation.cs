@@ -101,11 +101,12 @@ namespace APCenter.Facilities
             iconObj.transform.localPosition = new Vector3(0f, 2.1f, 0f);
             var iconTM = iconObj.AddComponent<TextMesh>();
             iconTM.text = "⚡ 발전기";
-            iconTM.fontSize = 24;
-            iconTM.characterSize = 0.10f;
+            iconTM.fontSize = 45;
+            iconTM.characterSize = 0.08f;
             iconTM.alignment = TextAlignment.Center;
             iconTM.anchor    = TextAnchor.MiddleCenter;
-            iconTM.color     = Color.yellow;
+            iconTM.color     = Color.black;
+            Billboard.Attach(iconObj);
         }
 
         private void BuildPad()
@@ -123,17 +124,18 @@ namespace APCenter.Facilities
             col.isTrigger = true;
             padCollider = col;
 
-            // 발판 위 "여기 서세요" 텍스트
+            // 발판 위 "여기 서세요" 텍스트 (비균등 스케일 부모 왜곡 방지를 위해 transform 하위에 배치)
             var hintObj = new GameObject("PadHint");
-            hintObj.transform.SetParent(padObj.transform);
-            hintObj.transform.localPosition = new Vector3(0f, 5.0f, 0f);
+            hintObj.transform.SetParent(transform);
+            hintObj.transform.localPosition = new Vector3(0f, 0.45f, 1.4f);
             var hintTM = hintObj.AddComponent<TextMesh>();
             hintTM.text = "▼ 발판";
-            hintTM.fontSize = 20;
+            hintTM.fontSize = 45;
             hintTM.characterSize = 0.08f;
             hintTM.alignment = TextAlignment.Center;
             hintTM.anchor    = TextAnchor.MiddleCenter;
-            hintTM.color     = Color.green;
+            hintTM.color     = Color.black;
+            Billboard.Attach(hintObj);
         }
 
         private void BuildProgressUI()
@@ -144,11 +146,12 @@ namespace APCenter.Facilities
             progObj.transform.localPosition = new Vector3(0f, 2.6f, -0.5f);
             progressText = progObj.AddComponent<TextMesh>();
             progressText.text = "";
-            progressText.fontSize = 28;
-            progressText.characterSize = 0.09f;
+            progressText.fontSize = 45;
+            progressText.characterSize = 0.08f;
             progressText.alignment = TextAlignment.Center;
             progressText.anchor    = TextAnchor.MiddleCenter;
-            progressText.color     = Color.cyan;
+            progressText.color     = Color.black;
+            Billboard.Attach(progObj);
 
             // 완료 횟수 텍스트 (예: 0/3)
             var cntObj = new GameObject("TaskCountText");
@@ -156,11 +159,12 @@ namespace APCenter.Facilities
             cntObj.transform.localPosition = new Vector3(0f, 3.2f, -0.5f);
             taskCountText = cntObj.AddComponent<TextMesh>();
             taskCountText.text = "";
-            taskCountText.fontSize = 24;
-            taskCountText.characterSize = 0.09f;
+            taskCountText.fontSize = 45;
+            taskCountText.characterSize = 0.08f;
             taskCountText.alignment = TextAlignment.Center;
             taskCountText.anchor    = TextAnchor.MiddleCenter;
-            taskCountText.color     = Color.white;
+            taskCountText.color     = Color.black;
+            Billboard.Attach(cntObj);
         }
 
         // ─── 이벤트 핸들러 ─────────────────────────────────────────────────────

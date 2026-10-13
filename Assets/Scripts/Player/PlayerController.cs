@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using APCenter.Core;
 using APCenter.Delivery;
 using APCenter.Facilities;
+using APCenter.UI;
 
 namespace APCenter.Player
 {
@@ -34,13 +36,17 @@ namespace APCenter.Player
         // 조이스틱 드래그 입력 지원
         public Vector2 JoystickInput { get; set; } = Vector2.zero;
 
+        // 지게차 탑승 운전 상태
+        public bool IsDrivingForklift { get; private set; } = false;
+        public ForkliftController ActiveForklift { get; private set; } = null;
+
         // 주변 상호작용 쿨다운 타이머
         private float interactTimer = 0f;
 
         // 분류 영역 Enum FSM 상태 관리
         private SortingZoneInteractionState sortingState = SortingZoneInteractionState.None;
         private SortingStation activeSortingStation = null;
-        private const int MaxCarryFromSorting = 4; // 분류대에서 출고로 옮길 때 최대 4개까지 들기!
+        private const int MaxCarryFromSorting = 4; // 분류대에서 출고로 옮길 때 최대 4개까지 들기
 
         private void Awake()
         {
@@ -63,8 +69,91 @@ namespace APCenter.Player
 
         private void Update()
         {
+            // 지게차 운전 중일 때는 조작 입력(WASD)을 ForkliftController에서 처리합니다.
+            if (IsDrivingForklift)
+            {
+                return;
+            }
+
             HandleMovement();
             HandleProximityInteractions();
+        }
+
+        /// <summary>
+        /// 지게차 탑승 시 호출:
+        /// ① 플레이어 비주얼 메쉬를 끄고(playerVisual.SetActive(false)),
+        /// ② 플레이어 트랜스폼을 지게차의 driverSeatPoint 자식으로 배치하여 운전 모드로 전환합니다.
+        /// </summary>
+        public void EnterForkliftDriveMode(ForkliftController forklift, Transform driverSeatPoint)
+        {
+            IsDrivingForklift = true;
+            ActiveForklift = forklift;
+            sortingState = SortingZoneInteractionState.None;
+            activeSortingStation = null;
+
+            if (controller != null)
+            {
+                controller.enabled = false;
+            }
+
+            SetPlayerVisualActive(false);
+
+            if (driverSeatPoint != null)
+            {
+                transform.SetParent(driverSeatPoint, false);
+                transform.localPosition = Vector3.zero;
+                transform.localRotation = Quaternion.identity;
+            }
+        }
+
+        /// <summary>
+        /// 지게차 하차 시 호출:
+        /// 플레이어 트랜스폼을 독립시키고 비주얼 메쉬 및 CharacterController를 복구합니다.
+        /// </summary>
+        public void ExitForkliftDriveMode(Vector3 dismountWorldPosition)
+        {
+            transform.SetParent(null, true);
+            transform.position = new Vector3(dismountWorldPosition.x, 0f, dismountWorldPosition.z);
+            transform.rotation = Quaternion.identity;
+
+            SetPlayerVisualActive(true);
+            if (visualModel != null)
+            {
+                visualModel.localScale = initialScale;
+            }
+
+            if (controller != null)
+            {
+                controller.enabled = true;
+            }
+
+            IsDrivingForklift = false;
+            ActiveForklift = null;
+        }
+
+        private void SetPlayerVisualActive(bool active)
+        {
+            if (visualModel != null && visualModel != transform)
+            {
+                visualModel.gameObject.SetActive(active);
+            }
+            else
+            {
+                var renderers = GetComponentsInChildren<Renderer>(true);
+                foreach (var r in renderers)
+                {
+                    if (Stack != null && r.transform.IsChildOf(Stack.transform) && r.transform != transform)
+                    {
+                        continue;
+                    }
+                    r.enabled = active;
+                }
+            }
+        }
+
+        public void SetForkliftVisualActive(bool active)
+        {
+            // 지게차 인간 연출 방지를 위해 플레이어 자식 어태치먼트 방식은 사용하지 않습니다.
         }
 
         private void HandleMovement()
@@ -110,108 +199,14 @@ namespace APCenter.Player
 
         private void HandleProximityInteractions()
         {
-            // 1. 분류대(SortingStation) 인터랙션 (Enum FSM 상태 관리)
-            var sortingStations = FindObjectsByType<SortingStation>(FindObjectsSortMode.None);
-            SortingStation nearbyStation = null;
-            foreach (var st in sortingStations)
-            {
-                if (Vector3.Distance(transform.position, st.transform.position) < 3.2f)
-                {
-                    nearbyStation = st;
-                    break;
-                }
-            }
-
-            if (nearbyStation != null)
-            {
-                // 새로 영역에 진입한 순간 상태 결정
-                if (activeSortingStation != nearbyStation || sortingState == SortingZoneInteractionState.None)
-                {
-                    activeSortingStation = nearbyStation;
-                    if (Stack.Count > 0)
-                    {
-                        sortingState = SortingZoneInteractionState.Depositing; // 상자 들고 진입 -> 놓기만!
-                    }
-                    else
-                    {
-                        sortingState = SortingZoneInteractionState.PickingUp;  // 빈손으로 진입 -> 들기만!
-                    }
-                }
-
-                // 0.15초마다 1개씩 처리
-                interactTimer += Time.deltaTime;
-                if (interactTimer >= 0.15f)
-                {
-                    interactTimer = 0f;
-
-                    if (sortingState == SortingZoneInteractionState.Depositing)
-                    {
-                        // 일치하는 택배가 있으면 1개씩 내려놓기
-                        var match = Stack.FindMatching(activeSortingStation.targetDestination);
-                        if (match != null)
-                        {
-                            activeSortingStation.SortPackage(match);
-                        }
-                        else
-                        {
-                            // 더 이상 내려놓을 상자가 없으면 즉시 IdleCompleted 상태로 전환! (절대 집지 않음)
-                            sortingState = SortingZoneInteractionState.IdleCompleted;
-                        }
-                    }
-                    else if (sortingState == SortingZoneInteractionState.PickingUp)
-                    {
-                        // 빈손으로 들어온 경우: 최대 4개까지 들기!
-                        if (Stack.Count < MaxCarryFromSorting && activeSortingStation.HasSortedPackages())
-                        {
-                            var sorted = activeSortingStation.PopSortedPackage();
-                            if (sorted != null)
-                            {
-                                Stack.Push(sorted);
-                            }
-                        }
-                        else
-                        {
-                            // 4개를 다 채웠거나 남은 상자가 없으면 즉시 IdleCompleted 상태로 전환! (절대 다시 놓지 않음)
-                            sortingState = SortingZoneInteractionState.IdleCompleted;
-                        }
-                    }
-                    else if (sortingState == SortingZoneInteractionState.IdleCompleted)
-                    {
-                        // 영역을 벗어날 때까지는 아무 작업도 하지 않고 완벽히 IDLE 대기!
-                    }
-                }
-                return;
-            }
-            else
-            {
-                // 분류 영역을 완전히 벗어난 경우 상태 리셋!
-                activeSortingStation = null;
-                sortingState = SortingZoneInteractionState.None;
-            }
-
-            // 분류 영역 밖에서의 일반 상호작용
+            // 분류 구역은 물리적으로 분리된 PutZone(북쪽 - 내려놓기 전용)과 TakeZone(남쪽 - 집기 전용) 트리거에서 독립 처리됩니다.
             interactTimer += Time.deltaTime;
             if (interactTimer < 0.15f) return;
             interactTimer = 0f;
 
             int maxCap = (GameManager.Instance != null) ? GameManager.Instance.GetPlayerMaxStack() : 4;
 
-            // 2. 출고 트럭(OutboundTruck) 근처: 해당 트럭 지역 색깔과 일치하는 택배만 적재!
-            var outTruck = FindAnyObjectByType<OutboundTruck>();
-            if (outTruck != null && Vector3.Distance(transform.position, outTruck.transform.position) < 6.0f)
-            {
-                if (Stack.Count > 0 && outTruck.CanLoadPackage())
-                {
-                    var matchPkg = Stack.FindMatching(outTruck.targetDestination);
-                    if (matchPkg != null)
-                    {
-                        outTruck.LoadPackage(matchPkg);
-                        return;
-                    }
-                }
-            }
-
-            // 3. 반품 구역(ReturnStation) 근처: 불량 박스 넣기 또는 검수
+            // 2. 반품 구역(ReturnStation) 근처: 불량 박스 넣기 또는 검수
             var returnStation = FindAnyObjectByType<ReturnStation>();
             if (returnStation != null && Vector3.Distance(transform.position, returnStation.transform.position) < 3.5f)
             {
@@ -228,7 +223,7 @@ namespace APCenter.Player
                 }
             }
 
-            // 4. 바닥의 미분류 택배 줍기 (언로딩 패드 근처)
+            // 3. 바닥의 미분류 택배 줍기 (언로딩 패드 근처)
             if (Stack.Count < maxCap)
             {
                 var packages = FindObjectsByType<PackageItem>(FindObjectsSortMode.None);
@@ -237,6 +232,7 @@ namespace APCenter.Player
 
                 foreach (var p in packages)
                 {
+                    if (p is PalletItem) continue;
                     if (p.transform.parent == null && (p.State == PackageState.Unloaded || p.State == PackageState.ReInbounded))
                     {
                         float d = Vector3.Distance(transform.position, p.transform.position);

@@ -14,6 +14,9 @@ namespace APCenter.Worker
         public WorkerRole currentRole;    // 현재 배치된 분야
         public WorkerRank rank;           // 신입, 일반, 숙련, 베테랑
 
+        // 알바 개별 최대 적재 용량 스탯
+        public int maxCapacity = 2;
+
         public float experiencePoints = 0f; // 근무 경험치
         public float workHoursAccumulated = 0f;
 
@@ -22,14 +25,33 @@ namespace APCenter.Worker
         public bool isDesertionWarning = false;   // 탈주 경고 발동 중
         public float desertionGraceTimer = 45f;   // 유예시간 45초
 
-        public WorkerData(int id, string name, WorkerType type, WorkerRole specialty)
+        public WorkerData(int id, string name, WorkerType type, WorkerRole specialty, WorkerRank initialRank = WorkerRank.Rookie)
         {
             workerId = id;
             workerName = name;
             workerType = type;
             specialtyRole = specialty;
             currentRole = specialty; // 기본적으로 특화 분야로 초기 배치
-            rank = (type == WorkerType.Temporary) ? WorkerRank.Senior : WorkerRank.Rookie;
+            rank = (type == WorkerType.Temporary) ? WorkerRank.Senior : initialRank;
+            SyncMaxCapacityWithRank();
+        }
+
+        public void SyncMaxCapacityWithRank()
+        {
+            if (workerType == WorkerType.Temporary)
+            {
+                maxCapacity = 8;
+                return;
+            }
+
+            switch (rank)
+            {
+                case WorkerRank.Rookie:  maxCapacity = 2; break;
+                case WorkerRank.Junior:  maxCapacity = 3; break;
+                case WorkerRank.Senior:  maxCapacity = 5; break;
+                case WorkerRank.Veteran: maxCapacity = 7; break;
+                default:                 maxCapacity = 2; break;
+            }
         }
 
         public float GetSpeed()
@@ -37,9 +59,9 @@ namespace APCenter.Worker
             float baseSpeed = 4.5f;
             switch (rank)
             {
-                case WorkerRank.Rookie: baseSpeed = 4.5f; break;
-                case WorkerRank.Junior: baseSpeed = 5.2f; break;
-                case WorkerRank.Senior: baseSpeed = 6.0f; break;
+                case WorkerRank.Rookie:  baseSpeed = 4.5f; break;
+                case WorkerRank.Junior:  baseSpeed = 5.2f; break;
+                case WorkerRank.Senior:  baseSpeed = 6.0f; break;
                 case WorkerRank.Veteran: baseSpeed = 7.0f; break;
             }
 
@@ -51,19 +73,14 @@ namespace APCenter.Worker
 
         public int GetMaxStack()
         {
-            int baseCap = 2;
-            switch (rank)
+            if (maxCapacity <= 0)
             {
-                case WorkerRank.Rookie: baseCap = 2; break;
-                case WorkerRank.Junior: baseCap = 3; break;
-                case WorkerRank.Senior: baseCap = 5; break;
-                case WorkerRank.Veteran: baseCap = 7; break;
+                SyncMaxCapacityWithRank();
             }
 
-            if (workerType == WorkerType.Temporary) baseCap = 8;
-            if (isMismatched) baseCap = Math.Max(1, baseCap - 1);
-
-            return baseCap;
+            int cap = maxCapacity;
+            if (isMismatched) cap = Math.Max(1, cap - 1);
+            return cap;
         }
 
         public float GetHourlyWage()
@@ -71,9 +88,9 @@ namespace APCenter.Worker
             float wage = 100f;
             switch (rank)
             {
-                case WorkerRank.Rookie: wage = 100f; break;
-                case WorkerRank.Junior: wage = 160f; break;
-                case WorkerRank.Senior: wage = 240f; break;
+                case WorkerRank.Rookie:  wage = 100f; break;
+                case WorkerRank.Junior:  wage = 160f; break;
+                case WorkerRank.Senior:  wage = 240f; break;
                 case WorkerRank.Veteran: wage = 350f; break;
             }
 
@@ -85,11 +102,11 @@ namespace APCenter.Worker
         {
             switch (rank)
             {
-                case WorkerRank.Rookie: return 0.60f;
-                case WorkerRank.Junior: return 0.80f;
-                case WorkerRank.Senior: return 0.95f;
+                case WorkerRank.Rookie:  return 0.60f;
+                case WorkerRank.Junior:  return 0.80f;
+                case WorkerRank.Senior:  return 0.95f;
                 case WorkerRank.Veteran: return 1.00f;
-                default: return 0.80f;
+                default:                 return 0.80f;
             }
         }
 

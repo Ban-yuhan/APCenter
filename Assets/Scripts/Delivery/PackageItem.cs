@@ -7,19 +7,23 @@ namespace APCenter.Delivery
 {
     public class PackageItem : MonoBehaviour
     {
-        public int PackageId { get; private set; }
-        public PackageDestination Destination { get; private set; }
+        public int PackageId { get; protected set; }
+        public PackageDestination Destination { get; set; }
         public PackageState State { get; set; } = PackageState.Unloaded;
         public bool IsDefective { get; set; } = false; // 파손/오분류/불량 택배
         public bool IsUrgent { get; set; } = false;    // VIP 긴급배송 택배
         public bool IsPalletized { get; set; } = false; // 파렛트 묶음
+
+        // 물리적 슬롯(1칸)과 정산 수량(일반 택배 1, 파렛트 9)의 분리
+        public virtual int DeliveryUnits { get; set; } = 1;
+        public bool CountedInCorporateOrder { get; set; } = false;
 
         [Header("Visual Components")]
         [SerializeField] private MeshRenderer boxRenderer;
         [SerializeField] private GameObject urgentRibbon;
         [SerializeField] private GameObject defectMarker;
 
-        private static int nextId = 1;
+        protected static int nextId = 1;
 
         public void UpdateAppearance()
         {

@@ -54,11 +54,12 @@ namespace APCenter.Core
     public enum GameEventType
     {
         None,
-        FeverTime,          // 피버타임: 앙팡데이 (물량 2배, 수익 2배)
-        UrgentDelivery,     // 긴급배송: VIP 특송 (제한시간 내 처리 시 대형 보너스)
-        BadWeather_Snow,    // 기상악화: 눈 (제설 작업)
-        BadWeather_Rain,    // 기상악화: 비 (차수판 설치)
-        BadWeather_Blackout,// 기상악화: 뇌우 정전 (비상 발전기 가동)
-        CorporateOrder      // 기업 대량주문: 한 목적지 물량 대량 입고 + 업그레이드 할인
+        FeverTime,          // [앙팡데이]: 1분간 주문량 2배, 수익 2배
+        UrgentDelivery,     // 긴급배송: VIP 특송 (제한시간 60초)
+        BadWeather_Snow,    // ④ [기상 - 눈]: 외부 통로 제설 발판 (이탈 시 감소) 100% 완료 미션
+        BadWeather_Rain,    // ② [기상 - 비]: 입/출고 도크 옆 차수판 발판 (이탈 시 유지) 100% 완료 미션
+        BadWeather_Typhoon, // ③ [기상 - 태풍]: 창문 앞 창문보강 발판 (이탈 시 유지) 100% 완료 미션
+        BadWeather_Blackout,// ① [정전]: 발전기 발판 (이탈 시 감소) 100% 완료 미션
+        CorporateOrder      // ⑤ [기업 대량주문]: 목표 수량(0/30), 1분 내 출고 완료 시 성공
     }
 }

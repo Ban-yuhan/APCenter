@@ -114,6 +114,12 @@ namespace APCenter.Editor
             // 대구대 (Green)
             var stationGreen = CreateSortingStation("Station_Daegu_Green", new Vector3(7f, 0f, 2f), PackageDestination.Daegu, greenMat, sortingArea.transform);
 
+            // 5-1. 분류 구역 우측 파렛트 작업대 (PalletStation)
+            GameObject palletStationObj = new GameObject("PalletStation_Workbench");
+            palletStationObj.transform.SetParent(sortingArea.transform);
+            var palletStation = palletStationObj.AddComponent<PalletStation>();
+            palletStation.stationPosition = new Vector3(13f, 0f, 2f);
+
             // 6. 반품 및 검수 구역 (Return Station)
             GameObject returnObj = new GameObject("ReturnStationArea");
             returnObj.transform.position = new Vector3(-12f, 0f, -4f);
@@ -148,39 +154,41 @@ namespace APCenter.Editor
             SetPrivateField(returnStation, "reinboundPad", reinboundPad.transform);
 
             // 라벨 텍스트
-            Create3DLabel("반품/검수구역\n[오분류/불량]", new Vector3(-12f, 2.0f, -4f), returnObj.transform, Color.magenta);
+            Create3DLabel("반품/검수구역\n[오분류/불량]", new Vector3(-12f, 2.0f, -4f), returnObj.transform, Color.black);
 
-            // 7. 출고 구역 & 출고 배송 트럭
+            // 7. 남쪽 출고 도크 & [서울, 부산, 대구] 전용 차량 3대 및 LoadingZone 발판 3개
             GameObject outboundArea = new GameObject("OutboundArea");
-            outboundArea.transform.position = new Vector3(8f, 0f, -12f);
+            outboundArea.transform.position = new Vector3(0f, 0f, -12f);
 
-            // 출고 트럭 상차 패드
-            GameObject outPad = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            outPad.name = "OutboundLoadPad";
-            outPad.transform.SetParent(outboundArea.transform);
-            outPad.transform.position = new Vector3(8f, 0.05f, -10f);
-            outPad.transform.localScale = new Vector3(5f, 0.1f, 4f);
-            outPad.GetComponent<Renderer>().material = yellowLineMat;
-            outPad.GetComponent<Collider>().isTrigger = true;
-            var outZone = outPad.AddComponent<InteractionZone>();
-            outZone.zoneType = ZoneType.OutboundLoading;
+            PackageDestination[] dockDests = { PackageDestination.Seoul, PackageDestination.Busan, PackageDestination.Daegu };
+            float[] dockXs = { -7f, 0f, 7f };
+            OutboundTruck outTruck = null;
 
-            // 출고 트럭
-            GameObject outTruckObj = CreateTruckModel("OutboundTruck", new Color(0.2f, 0.5f, 0.9f));
-            outTruckObj.transform.position = new Vector3(8f, 0f, -16f);
-            outTruckObj.transform.rotation = Quaternion.Euler(0, 180, 0);
-            var outTruck = outTruckObj.AddComponent<OutboundTruck>();
+            for (int i = 0; i < 3; i++)
+            {
+                Color truckColor = PackageItem.GetDestinationColor(dockDests[i]);
+                GameObject tObj = CreateTruckModel($"OutboundTruck_{dockDests[i]}", truckColor);
+                tObj.transform.SetParent(outboundArea.transform);
+                var tComp = tObj.AddComponent<OutboundTruck>();
+                tComp.ConfigureDock(dockDests[i], new Vector3(dockXs[i], 0f, -16f));
+                if (i == 0) outTruck = tComp;
 
-            // 8. 기상 악화 복구 존 (Weather Task Zone)
-            GameObject weatherZoneObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            weatherZoneObj.name = "WeatherTaskZone";
-            weatherZoneObj.transform.position = new Vector3(0f, 0.05f, -6f);
-            weatherZoneObj.transform.localScale = new Vector3(3f, 0.1f, 3f);
-            weatherZoneObj.GetComponent<Renderer>().material = CreateColoredMaterial("Mat_Cyan", new Color(0.2f, 0.8f, 0.9f));
-            weatherZoneObj.GetComponent<Collider>().isTrigger = true;
-            var weatherZone = weatherZoneObj.AddComponent<WeatherTaskZone>();
-            weatherZone.zoneType = ZoneType.WeatherTask;
-            Create3DLabel("기상악화 대응 존\n[제설/차수판/발전기]", new Vector3(0f, 1.8f, -6f), weatherZoneObj.transform, Color.cyan);
+                GameObject lzObj = new GameObject($"LoadingZone_{dockDests[i]}");
+                lzObj.transform.SetParent(outboundArea.transform);
+                var lzComp = lzObj.AddComponent<LoadingZone>();
+                lzComp.InitializeZone(dockDests[i], tComp, new Vector3(dockXs[i], 0.05f, -11.2f));
+            }
+
+            //// 8. 기상 악화 복구 존 (Weather Task Zone)
+            //GameObject weatherZoneObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            //weatherZoneObj.name = "WeatherTaskZone";
+            //weatherZoneObj.transform.position = new Vector3(0f, 0.05f, -6f);
+            //weatherZoneObj.transform.localScale = new Vector3(3f, 0.1f, 3f);
+            //weatherZoneObj.GetComponent<Renderer>().material = CreateColoredMaterial("Mat_Cyan", new Color(0.2f, 0.8f, 0.9f));
+            //weatherZoneObj.GetComponent<Collider>().isTrigger = true;
+            //var weatherZone = weatherZoneObj.AddComponent<WeatherTaskZone>();
+            //weatherZone.zoneType = ZoneType.WeatherTask;
+            //Create3DLabel("기상악화 대응 존\n[제설/차수판/발전기]", new Vector3(0f, 1.8f, -6f), weatherZoneObj.transform, Color.cyan);
 
             // 9. 플레이어 캐릭터 생성
             GameObject playerObj = CreatePlayerCharacter(new Vector3(0f, 0f, -2f));
@@ -371,12 +379,13 @@ namespace APCenter.Editor
             labelObj.transform.position = pos;
             var tm = labelObj.AddComponent<TextMesh>();
             tm.text = text;
-            tm.fontSize = 28;
+            tm.fontSize = 45;
             tm.characterSize = 0.08f;
             tm.alignment = TextAlignment.Center;
             tm.anchor = TextAnchor.MiddleCenter;
             tm.color = color;
             labelObj.transform.rotation = Quaternion.Euler(50, 0, 0); // 카메라 각도에 맞춤
+            labelObj.AddComponent<Billboard>();
         }
 
         private static void CreateGameUI(GameObject managersObj)
@@ -472,6 +481,10 @@ namespace APCenter.Editor
             GameObject joystickBg = CreateUIPanel("VirtualJoystick", canvasObj.transform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0.5f, 0.5f), new Vector2(160f, 220f), new Vector2(160f, 160f), new Color(1f, 1f, 1f, 0.25f));
             GameObject joystickHandle = CreateUIPanel("Handle", joystickBg.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(60f, 60f), new Color(1f, 1f, 1f, 0.65f));
             joystickBg.AddComponent<VirtualJoystick>();
+
+            // 9. TopHUDUI (좌측 상단 컴팩트 이벤트 표시 & 우측 상단 상시 앙팡데이 수동 버튼)
+            var topHudUI = canvasObj.AddComponent<TopHUDUI>();
+            topHudUI.InitializeSubHUD(canvasObj.transform);
 
             // UIManager 컴포넌트에 바인딩
             var uiMgr = managersObj.AddComponent<UIManager>();
